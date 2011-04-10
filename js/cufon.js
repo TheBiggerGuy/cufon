@@ -852,6 +852,7 @@ var Cufon = (function() {
 		onAfterReplace: null,
 		onBeforeReplace: null,
 		printable: true,
+		printWithFont: false,
 		selector: (
 				window.Sizzle
 			||	(window.jQuery && function(query) { return jQuery(query); }) // avoid noConflict issues
@@ -926,6 +927,7 @@ var Cufon = (function() {
 			});
 			initialized = true;
 		}
+		if (options.printWithFont) options.printable = false;
 		if (options.hover) options.forceHitArea = true;
 		if (options.autoDetect) delete options.fontFamily;
 		if (typeof options.ignoreClass == 'string') {
@@ -975,27 +977,34 @@ Cufon.registerEngine('vml', (function() {
 	check = null;
 
 	var HAS_BROKEN_LINEHEIGHT = (document.documentMode || 0) < 8;
-
-	document.write(('<style type="text/css">' +
-		'cufoncanvas{text-indent:0;}' +
-		'@media screen{' +
-			'cvml\\:shape,cvml\\:rect,cvml\\:fill,cvml\\:shadow{behavior:url(#default#VML);display:block;antialias:true;position:absolute;}' +
-			'cufoncanvas{position:absolute;text-align:left;}' +
-			'cufon{display:inline-block;position:relative;vertical-align:' +
-			(HAS_BROKEN_LINEHEIGHT
-				? 'middle'
-				: 'text-bottom') +
-			';}' +
-			'cufon cufontext{position:absolute;left:-10000in;font-size:1px;text-align:left;}' +
-			'cufonshy.cufon-shy-disabled,.cufon-viewport-resizing cufonshy{display:none;}' +
-			'cufonglue{white-space:nowrap;display:inline-block;}' +
-			'.cufon-viewport-resizing cufonglue{white-space:normal;}' +
-			'a cufon{cursor:pointer}' + // ignore !important here
-		'}' +
-		'@media print{' +
-			'cufon cufoncanvas{display:none;}' +
-		'}' +
-	'</style>').replace(/;/g, '!important;'));
+	
+	var isFirstRun = true;
+	
+	function firstRun(options) {
+	  var style = '<style type="text/css">' +
+		  'cufoncanvas{text-indent:0;}' +
+		  '@media screen{' +
+			  'cvml\\:shape,cvml\\:rect,cvml\\:fill,cvml\\:shadow{behavior:url(#default#VML);display:block;antialias:true;position:absolute;}' +
+			  'cufoncanvas{position:absolute;text-align:left;}' +
+			  'cufon{display:inline-block;position:relative;vertical-align:' +
+			  (HAS_BROKEN_LINEHEIGHT
+				  ? 'middle'
+				  : 'text-bottom') +
+			  ';}' +
+			  'cufon cufontext{position:absolute;left:-10000in;font-size:1px;text-align:left;}' +
+			  'cufonshy.cufon-shy-disabled,.cufon-viewport-resizing cufonshy{display:none;}' +
+			  'cufonglue{white-space:nowrap;display:inline-block;}' +
+			  '.cufon-viewport-resizing cufonglue{white-space:normal;}' +
+			  'a cufon{cursor:pointer}' + // ignore !important here
+		  '}';
+		if (!options.printWithFont) {
+		  style += '@media print{' +
+			  'cufon cufoncanvas{display:none;}' +
+		  '}';
+		}
+	  style += '</style>';
+	  document.write(style.replace(/;/g, '!important;'));
+	}
 
 	function getFontSizeInPixels(el, value) {
 		return getSizeInPixels(el, /(?:em|ex|%)$|^[a-z-]+$/i.test(value) ? '1em' : value);
@@ -1045,6 +1054,11 @@ Cufon.registerEngine('vml', (function() {
 	}
 
 	return function(font, text, style, options, node, el, hasNext) {
+	  
+	  if (isFirstRun) {
+	    firstRun(options);
+	    isFirstRun = false;
+	  }
 
 		var redraw = (text === null);
 
@@ -1231,30 +1245,36 @@ Cufon.registerEngine('canvas', (function() {
 
 	// Firefox 2 w/ non-strict doctype (almost standards mode)
 	var HAS_BROKEN_LINEHEIGHT = !HAS_INLINE_BLOCK && (document.compatMode == 'BackCompat' || /frameset|transitional/i.test(document.doctype.publicId));
-
-	var styleSheet = document.createElement('style');
-	styleSheet.type = 'text/css';
-	styleSheet.appendChild(document.createTextNode((
-		'cufon{text-indent:0;}' +
-		'@media screen,projection{' +
-			'cufon{display:inline;display:inline-block;position:relative;vertical-align:middle;' +
-			(HAS_BROKEN_LINEHEIGHT
-				? ''
-				: 'font-size:1px;line-height:1px;') +
-			'}cufon cufontext{display:-moz-inline-box;display:inline-block;width:0;height:0;text-align:left;text-indent:-10000in;}' +
-			(HAS_INLINE_BLOCK
-				? 'cufon canvas{position:relative;}'
-				: 'cufon canvas{position:absolute;}') +
-			'cufonshy.cufon-shy-disabled,.cufon-viewport-resizing cufonshy{display:none;}' +
-			'cufonglue{white-space:nowrap;display:inline-block;}' +
-			'.cufon-viewport-resizing cufonglue{white-space:normal;}' +
-		'}' +
-		'@media print{' +
-			'cufon{padding:0;}' + // Firefox 2
-			'cufon canvas{display:none;}' +
-		'}'
-	).replace(/;/g, '!important;')));
-	document.getElementsByTagName('head')[0].appendChild(styleSheet);
+  
+  var isFirstRun = true;
+  
+  function firstRun(options) {
+	  var styleSheet = document.createElement('style');
+	  styleSheet.type = 'text/css';
+	  
+	  var style = 'cufon{text-indent:0;}' +
+		  '@media screen,projection{' +
+			  'cufon{display:inline;display:inline-block;position:relative;vertical-align:middle;' +
+			  (HAS_BROKEN_LINEHEIGHT
+				  ? ''
+				  : 'font-size:1px;line-height:1px;') +
+			  '}cufon cufontext{display:-moz-inline-box;display:inline-block;width:0;height:0;text-align:left;text-indent:-10000in;}' +
+			  (HAS_INLINE_BLOCK
+				  ? 'cufon canvas{position:relative;}'
+				  : 'cufon canvas{position:absolute;}') +
+			  'cufonshy.cufon-shy-disabled,.cufon-viewport-resizing cufonshy{display:none;}' +
+			  'cufonglue{white-space:nowrap;display:inline-block;}' +
+			  '.cufon-viewport-resizing cufonglue{white-space:normal;}' +
+		  '}';
+		if (!options.printWithFont) {
+		  style += '@media print{' +
+			  'cufon{padding:0;}' + // Firefox 2
+			  'cufon canvas{display:none;}' +
+		  '}';
+		}
+	  styleSheet.appendChild(document.createTextNode(style.replace(/;/g, '!important;')));
+	  document.getElementsByTagName('head')[0].appendChild(styleSheet);
+	}
 
 	function generateFromVML(path, context) {
 		var atX = 0, atY = 0;
@@ -1290,6 +1310,11 @@ Cufon.registerEngine('canvas', (function() {
 	}
 
 	return function(font, text, style, options, node, el) {
+	  
+	  if (isFirstRun) {
+	    firstRun(options);
+	    isFirstRun = false;
+	  }
 
 		var redraw = (text === null);
 
